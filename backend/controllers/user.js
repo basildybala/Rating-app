@@ -73,3 +73,52 @@ exports.verifyEmail = async (req, res) => {
     });
     res.json({ message: "Your email is verified." });
   };
+
+  exports.resendEmailVerificationToken = async (req, res) => {
+    const { userId } = req.body;
+  
+    const user = await User.findById(userId);
+    if (!user) return sendError(res, "user not found!");
+  
+    if (user.isVerified)
+      return sendError(res, "This email id is already verified!");
+  
+    const alreadyHasToken = await EmailVerificationToken.findOne({
+      owner: userId,
+    });
+    if (alreadyHasToken)
+      return sendError(
+        res,
+        "Only after one hour you can request for another token!"
+      );
+  
+    // generate 6 digit otp
+    let OTP = generateOTP();
+  
+    // store otp inside our db
+    const newEmailVerificationToken = new EmailVerificationToken({
+      owner: user._id,
+      token: OTP,
+    });
+  
+    await newEmailVerificationToken.save();
+  
+    // send that otp to our user
+  
+    var transport = generateMailTransporter();
+  
+    transport.sendMail({
+      from: "verification@reviewapp.com",
+      to: user.email,
+      subject: "Email Verification",
+      html: `
+        <p>Your verification OTP</p>
+        <h1>${OTP}</h1>
+  
+      `,
+    });
+  
+    res.json({
+      message: "New OTP has been sent to your registered email accout.",
+    });
+  };
